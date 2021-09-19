@@ -1,4 +1,7 @@
 from enum import IntEnum
+import random
+import os
+import configparser
 
 # Classes
 class Action(IntEnum):
@@ -6,23 +9,6 @@ class Action(IntEnum):
     SHAKE_EFFECT = 2
     OBJECTION = 3
     TEXT_SHAKE_EFFECT = 4
-
-class Character():
-    PHOENIX = 'PHOENIX'
-    EDGEWORTH = 'EDGEWORTH'
-    GODOT = 'GODOT'
-    FRANZISKA = 'FRANZISKA'
-    JUDGE = 'JUDGE'
-    LARRY = 'LARRY'
-    MAYA = 'MAYA'
-    KARMA = 'KARMA'
-    PAYNE = 'PAYNE'
-    MAGGEY = 'MAGGEY'
-    PEARL = 'PEARL'
-    LOTTA = 'LOTTA'
-    GUMSHOE = 'GUMSHOE'
-    GROSSBERG = 'GROSSBERG'
-
 
 class Location(IntEnum):
     COURTROOM_LEFT = 1
@@ -34,125 +20,105 @@ class Location(IntEnum):
     def __str__(self):
         return str(self.name).capitalize()
 
-# Maps
-character_emotions = {
-    Character.EDGEWORTH: {
-        "happy": ["confident", "pointing", "smirk"],
-        "neutral": ["document", "normal", "thinking"],
-        "sad": ["handondesk"],
-    },
-    Character.PHOENIX: {
-        "happy": ["confident", "pointing", "handsondesk"],
-        "neutral": ["document", "normal", "thinking", "coffee"],
-        "sad": ["emo", "sheepish", "sweating"],
-    },
-    Character.MAYA: {
-        "happy": ["bench"],
-        "neutral": ["bench-hum", "bench-profile"],
-        "sad": ["bench-strict", "bench-ugh"],
-    },
-    Character.LARRY: {
-        "happy": ["hello"],
-        "neutral": ["normal"],
-        "sad": ["extra", "mad", "nervous"],
-    },
-    Character.GODOT: {
-        "happy": ["normal"],
-        "neutral": ["normal"],
-        "sad": ["steams", "pointing"],
-    },
-    Character.FRANZISKA: {
-        "happy": ["ha"],
-        "neutral": ["ready"],
-        "sad": ["mad", "sweating", "withwhip"],
-    },
-    Character.JUDGE: {
-        "happy": ["nodding"],
-        "neutral": ["normal"],
-        "sad": ["headshake", "warning"],
-    },
-    Character.KARMA: {
-        "happy": ["smirk", "snap"],
-        "neutral": ["normal"],
-        "sad": ["badmood", "break", "sweat"],
-    },
-    Character.PAYNE: {
-        "happy": ["confident"],
-        "neutral": ["normal"],
-        "sad": ["sweating"],
-    },
-    Character.MAGGEY: {
-        "happy": ["pumped", "shining"],
-        "neutral": ["normal"],
-        "sad": ["sad"],
-    },
-    Character.PEARL: {
-        "happy": ["sparkle", "surprised"],
-        "neutral": ["normal", "shy", "thinking"],
-        "sad": ["cries", "disappointed", "fight"],
-    },
-    Character.LOTTA: {
-        "happy": ["confident", "smiling"],
-        "neutral": ["normal", "shy", "thinking"],
-        "sad": ["badmood", "disappointed", "mad"],
-    },
-    Character.GUMSHOE: {
-        "happy": ["laughing", "confident", "pumped"],
-        "neutral": ["normal", "shy", "side", "thinking"],
-        "sad": ["disheartened", "mad"],
-    },
-    Character.GROSSBERG: {
-        "happy": ["normal"],
-        "neutral": ["normal"],
-        "sad": ["sweating"],
-    },
-}
-
-character_map = {
-    Character.PHOENIX: "assets/Sprites-phoenix",
-    Character.EDGEWORTH: "assets/Sprites-edgeworth",
-    Character.GODOT: "assets/Sprites-Godot",
-    Character.FRANZISKA: "assets/Sprites-franziska",
-    Character.JUDGE: "assets/Sprites-judge",
-    Character.LARRY: "assets/Sprites-larry",
-    Character.MAYA: "assets/Sprites-maya",
-    Character.KARMA: "assets/Sprites-karma",
-    Character.PAYNE: "assets/Sprites-payne",
-    Character.MAGGEY: "assets/Sprites-Maggey",
-    Character.PEARL: "assets/Sprites-Pearl",
-    Character.LOTTA: "assets/Sprites-lotta",
-    Character.GUMSHOE: "assets/Sprites-gumshoe",
-    Character.GROSSBERG: "assets/Sprites-grossberg",
-}
-
-character_location_map = {
-    Character.PHOENIX: Location.COURTROOM_LEFT,
-    Character.EDGEWORTH: Location.COURTROOM_RIGHT,
-    Character.GODOT: Location.COURTROOM_RIGHT,
-    Character.FRANZISKA: Location.COURTROOM_RIGHT,
-    Character.JUDGE: Location.JUDGE_STAND,
-    Character.LARRY: Location.WITNESS_STAND,
-    Character.MAYA: Location.CO_COUNCIL,
-    Character.KARMA: Location.COURTROOM_RIGHT,
-    Character.PAYNE: Location.COURTROOM_RIGHT,
-    Character.MAGGEY: Location.WITNESS_STAND,
-    Character.PEARL: Location.WITNESS_STAND,
-    Character.LOTTA: Location.WITNESS_STAND,
-    Character.GUMSHOE: Location.WITNESS_STAND,
-    Character.GROSSBERG: Location.WITNESS_STAND,
-}
-
-
-location_map = {
-    Location.COURTROOM_LEFT: "assets/defenseempty.png",
-    Location.WITNESS_STAND: "assets/witnessempty.png",
-    Location.COURTROOM_RIGHT: "assets/prosecutorempty.png",
-    Location.CO_COUNCIL: "assets/helperstand.png",
-    Location.JUDGE_STAND: "assets/judgestand.png",
-    Location.COURT_HOUSE: "assets/courtroomoverview.png",
-}
-
-
 # Single_constants
 fps = 18
 lag_frames = 25
+lib_path = os.path.dirname(os.path.abspath(__file__))
+pollys_gender = random.choice(['male', 'female'])
+
+config = configparser.RawConfigParser()
+config.read(os.path.join(lib_path, 'render_config.cfg'))
+
+# Config-related constants
+ignore_gender = int(config.get('render-config', 'ignore-gender'))
+hd_video = int(config.get('render-config', 'hd-video'))
+
+
+character_roles_and_gender = {
+    'PHOENIX': ['attorney', 'male'],
+    'APOLLO': ['attorney', 'male'],
+    'MIA': ['attorney', 'female'],
+    'GREGORY': ['attorney', 'male'],
+    'EDGEWORTH': ['prosecutor', 'male'],
+    'GODOT': ['prosecutor', 'male'],
+    'KARMA': ['prosecutor', 'male'],
+    'FRANZISKA': ['prosecutor', 'female'],
+    'KLAVIER': ['prosecutor', 'male'],
+    'PAYNE': ['prosecutor', 'male'],
+    'ROU': ['prosecutor', 'male'],
+    'JUDGE': ['judge', 'male'],
+    'GANT': ['witness', 'male'],
+    'GROSSBERG': ['witness', 'male'],
+    'GUMSHOE': ['witness', 'male'],
+    'LARRY': ['witness', 'male'],
+    'LOTTA': ['witness', 'female'],
+    'MAGGEY': ['witness', 'female'],
+    'PEARL': ['witness', 'female'],
+    'SAHWIT': ['witness', 'male'],
+    'SKYE': ['witness', 'female'],
+    'TRUCY': ['witness', 'female'],
+    'APRIL': ['witness', 'female'],
+    'REDD': ['witness', 'male'],
+    'YANNI': ['witness', 'male'],
+    'CODY': ['witness', 'male'],
+    'OLDBAG': ['witness', 'female'],
+    'PENNY': ['witness', 'female'],
+    'DEE': ['witness', 'female'],
+    'LANA': ['witness', 'female'],
+    'SAL': ['witness', 'male'],
+    'MEEKINS': ['witness', 'male'],
+    'WILL': ['witness', 'male'],
+    'ACRO': ['witness', 'male'],
+    'ADRIAN': ['witness', 'female'],
+    'ANGEL': ['witness', 'female'],
+    'BEN': ['witness', 'male'],
+    'INI': ['witness', 'female'],
+    'JAKE': ['witness', 'male'],
+    'MAX': ['witness', 'male'],
+    'MOE': ['witness', 'male'],
+    'MORGAN': ['witness', 'female'],
+    'REGINA': ['witness', 'female'],
+    'WELLINGTON': ['witness', 'male'],
+    'ALITA': ['witness', 'female'],
+    'DARYAN': ['witness', 'male'],
+    'LAMIROIR': ['witness', 'female'],
+    'ELDOON': ['witness', 'male'],
+    'VERA': ['witness', 'female'],
+    'WOCKY': ['witness', 'male'],
+    'VIOLA': ['witness', 'female'],
+    'VICTOR': ['witness', 'male'],
+    'TIGRE': ['witness', 'male'],
+    'RON': ['witness', 'male'],
+    'DESIREE': ['witness', 'female'],
+    'DAHLIA': ['witness', 'female'],
+    'ATMEY': ['witness', 'male'],
+    'STICKLER': ['witness', 'male'],
+    'KRISTOPH': ['witness', 'male'],
+    'OLGA': ['witness', 'female'],
+    'PLUM': ['witness', 'female'],
+    'POLLY': ['witness', pollys_gender],
+    'ARMSTRONG': ['witness', 'male'],
+    'MATT': ['witness', 'male'],
+    'BRUSHEL': ['witness', 'male'],
+    'VALANT': ['witness', 'male'],
+    'KILLER': ['witness', 'male'],
+    'MAYA': ['assistant', 'female']
+}
+
+# Maps
+locations = {
+    'attorney': Location.COURTROOM_LEFT, 
+    'prosecutor': Location.COURTROOM_RIGHT, 
+    'judge': Location.JUDGE_STAND, 
+    'witness': Location.WITNESS_STAND, 
+    'assistant': Location.CO_COUNCIL
+}
+
+location_map = {
+    Location.COURTROOM_LEFT: f"{lib_path}/assets/locations/defenseempty.png",
+    Location.WITNESS_STAND: f"{lib_path}/assets/locations/witnessempty.png",
+    Location.COURTROOM_RIGHT: f"{lib_path}/assets/locations/prosecutorempty.png",
+    Location.CO_COUNCIL: f"{lib_path}/assets/locations/helperstand.png",
+    Location.JUDGE_STAND: f"{lib_path}/assets/locations/judgestand.png",
+    Location.COURT_HOUSE: f"{lib_path}/assets/locations/courtroomoverview.png",
+}
