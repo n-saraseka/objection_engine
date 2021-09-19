@@ -1,4 +1,4 @@
-from beans.comment_bridge import CommentBridge
+from .comment_bridge import CommentBridge
 from PIL import Image, ImageDraw, ImageFont
 from matplotlib.pyplot import imshow
 import numpy as np
@@ -16,19 +16,20 @@ from collections import Counter
 import random
 from textwrap import wrap
 import spacy
-from polarity_analysis import Analizer
+from .polarity_analysis import Analizer
 analizer = Analizer()
-from beans.img import AnimImg
-from beans.text import AnimText
-from beans.scene import AnimScene
-from beans.video import AnimVideo
-from constants import Character, lag_frames, fps
-import constants
+from .img import AnimImg
+from .text import AnimText
+from .scene import AnimScene
+from .video import AnimVideo
+from .constants import lag_frames, fps, lib_path, character_roles_and_gender, hd_video
+from PIL import Image, ImageDraw, ImageFont
+from . import constants
 import re
+import subprocess
 
 nlp = spacy.load("xx_ent_wiki_sm")
 nlp.add_pipe(nlp.create_pipe('sentencizer'))
-
 
 def split_str_into_newlines(text: str, max_line_count: int = 34):
     words = text.split(" ")
@@ -41,68 +42,89 @@ def split_str_into_newlines(text: str, max_line_count: int = 34):
             new_text += word + " "
     return new_text
 
+def audio_duration(filename: str):
+    duration = float(ffmpeg.probe(filename)['streams'][0]['duration'])
+    return duration
+
 
 # @profile
 def do_video(config: List[Dict], output_filename):
     scenes = []
     sound_effects = []
     part = 0
+    frames_since_video_start = 0
+    audio_start_frame = 0
     for scene in config:
         # We pick up the images to be rendered
         bg = AnimImg(constants.location_map[scene["location"]])
-        arrow = AnimImg("assets/arrow.png", x=235, y=170, w=15, h=15, key_x=5)
-        textbox = AnimImg("assets/textbox4.png", w=bg.w)
-        objection = AnimImg("assets/objection.gif")
+        arrow = AnimImg(f"{lib_path}/assets/arrow.png", x=881, y=637, w=56, h=56, key_x=19)
+        textbox = AnimImg(f"{lib_path}/assets/textbox4.png", w=bg.w)
         bench = None
         # constants.Location needs a more in-depth chose
         if scene["location"] == constants.Location.COURTROOM_LEFT:
-            bench = AnimImg("assets/logo-left.png")
+            bench = AnimImg(f"{lib_path}/assets/locations/logo-left.png")
         elif scene["location"] == constants.Location.COURTROOM_RIGHT:
-            bench = AnimImg("assets/logo-right.png")
+            bench = AnimImg(f"{lib_path}/assets/locations/logo-right.png")
         elif scene["location"] == constants.Location.WITNESS_STAND:
-            bench = AnimImg("assets/witness_stand.png", w=bg.w)
+            bench = AnimImg(f"{lib_path}/assets/locations/witness_stand.png", w=bg.w)
             bench.y = bg.h - bench.h
         if "audio" in scene:
-            sound_effects.append({"_type": "bg", "src": f'assets/{scene["audio"]}.mp3'})
+            audio_start_frame = frames_since_video_start
+            audio_name = f'{lib_path}/assets/bgm/{scene["audio"]}.mp3'
+            audio_length = int(audio_duration(audio_name)*fps)
+            sound_effects.append({"_type": "bg", "length": audio_length, "src": audio_name, "start": audio_start_frame})
         current_frame = 0
         current_character_name = None
         text = None
-        #         print('scene', scene)
         for obj in scene["scene"]:
             # First we check for evidences
             if "evidence" in obj and obj['evidence'] is not None:
                 if scene["location"] == constants.Location.COURTROOM_RIGHT:
-                    evidence = AnimImg(obj["evidence"], x=26, y=19, w=85, maxh=75)
+                    ev_bg = AnimImg(f'{lib_path}/assets/evidence-bg.gif', x=97, y=71, w=256, maxh=256)
+                    evidence = AnimImg(obj["evidence"], x=111, y=85, w=232, maxh=232)
+                    evidence = AnimImg(obj["evidence"], x=111, y=int(85+((228-evidence.h)/2)), w=232, h=evidence.h)
                 else:
-                    evidence = AnimImg(obj["evidence"], x=145, y=19, w=85, maxh=75)
+                    ev_bg = AnimImg(f'{lib_path}/assets/evidence-bg.gif', x=544, y=71, w=256, maxh=256)
+                    evidence = AnimImg(obj["evidence"], x=558, y=85, w=232, maxh=232)
+                    evidence = AnimImg(obj["evidence"], x=558, y=int(85+((228-evidence.h)/2)), w=232, h=evidence.h)
             else:
+                ev_bg = None
                 evidence = None
             if "character" in obj:
-                _dir = constants.character_map[obj["character"]]
+                _dir = f'{lib_path}/assets/characters/Sprites-{obj["character"]}'
                 current_character_name = obj["character"]
-                #                 print('character change', current_character_name)
-                #                 if current_character_name == "Larry":
-                #                     current_character_name = "The Player"
+                font_size = 30
+                font_name = ImageFont.truetype(f'{lib_path}/assets/fonts/ace-name.ttf', size=font_size)
+                temp = f'{lib_path}/assets/locations/defenseempty.png'
+                img = Image.open(temp)
+                draw = ImageDraw.Draw(img)
+                w, h = draw.textsize(current_character_name, font_name)
+                text_h = (30-h)/2
+                if w>=367:
+                    font_size = int(30*(367/w))
+                    font_name = ImageFont.truetype(f'{lib_path}/assets/fonts/ace-name.ttf', size=font_size)
+                    w, h = draw.textsize(current_character_name, font_name)
+                    text_h = (30-h)/2
                 character_name = AnimText(
                     current_character_name,
-                    font_path="assets/igiari/Igiari.ttf",
-                    font_size=12,
-                    x=4,
-                    y=113,
+                    font_path=f'{lib_path}/assets/fonts/ace-name.ttf',
+                    font_size=font_size,
+                    x=int(16+(367-w)/2),
+                    y=430+text_h,
                 )
-                default = "normal" if "emotion" not in obj else obj["emotion"]
+                default = f"neutral/{current_character_name.lower()}-normal" if "emotion" not in obj else obj["emotion"]
                 default_path = (
-                    f"{_dir}/{current_character_name.lower()}-{default}(a).gif"
+                    f"{_dir}/{default}(a).gif"
                 )
                 if not os.path.isfile(default_path):
                     default_path = (
-                        f"{_dir}/{current_character_name.lower()}-{default}.gif"
+                        f"{_dir}/{default}.gif"
                     )
                 if not os.path.isfile(
                         default_path
                         ):
                         default_path = (
-                            f"{_dir}/{current_character_name.lower()}-normal(a).gif"
+                            f"{_dir}/neutral/{current_character_name.lower()}-normal(a).gif"
                         )
                 assert os.path.isfile(
                     default_path
@@ -117,21 +139,12 @@ def do_video(config: List[Dict], output_filename):
             if "emotion" in obj:
                 default = obj["emotion"]
                 default_path = (
-                    f"{_dir}/{current_character_name.lower()}-{default}(a).gif"
+                    f"{_dir}/{default}(a).gif"
                 )
                 if not os.path.isfile(default_path):
                     default_path = (
-                        f"{_dir}/{current_character_name.lower()}-{default}.gif"
+                        f"{_dir}/{default}.gif"
                     )
-                if not os.path.isfile(
-                        default_path
-                        ):
-                        default_path = (
-                            f"{_dir}/{current_character_name.lower()}-normal(a).gif"
-                        )
-                assert os.path.isfile(
-                    default_path
-                ), f"{default_path} does not exist"
                 default_character = AnimImg(default_path, half_speed=True)
                 if "(a)" in default_path:
                     talking_character = AnimImg(
@@ -148,22 +161,34 @@ def do_video(config: List[Dict], output_filename):
                 _colour = None if "colour" not in obj else obj["colour"]
                 text = AnimText(
                     _text,
-                    font_path="assets/igiari/Igiari.ttf",
-                    font_size=15,
-                    x=5,
-                    y=130,
+                    font_path=f"{lib_path}/assets/fonts/Igiari.ttf",
+                    font_size=56,
+                    x=19,
+                    y=487,
                     typewriter_effect=True,
                     colour=_colour,
                 )
                 num_frames = len(_text) + lag_frames
                 _character_name = character_name
                 if "name" in obj:
+                    font_size = 30
+                    font_name = ImageFont.truetype(f'{lib_path}/assets/fonts/ace-name.ttf', size=font_size)
+                    temp = f'{lib_path}/assets/locations/defenseempty.png'
+                    img = Image.open(temp)
+                    draw = ImageDraw.Draw(img)
+                    w, h = draw.textsize(obj["name"], font_name)
+                    text_h = (30-h)/2
+                    if w>=427:
+                        font_size = int(30*(427/w))
+                        font_name = ImageFont.truetype(f'{lib_path}/assets/fonts/ace-name.ttf', size=font_size)
+                        w, h = draw.textsize(obj["name"], font_name)
+                        text_h = (30-h)/2
                     _character_name = AnimText(
                         obj["name"],
-                        font_path="assets/igiari/Igiari.ttf",
-                        font_size=12,
-                        x=4,
-                        y=113,
+                        font_path=f"{lib_path}/assets/fonts/ace-name.ttf",
+                        font_size=font_size,
+                        x=int(16+(427-w)/2),
+                        y=430+text_h,
                     )
                 if obj["action"] == constants.Action.TEXT_SHAKE_EFFECT:
                     bg.shake_effect = True
@@ -174,13 +199,13 @@ def do_video(config: List[Dict], output_filename):
                 scene_objs = list(
                     filter(
                         lambda x: x is not None,
-                        [bg, character, bench, textbox, _character_name, text, evidence],
+                        [bg, character, bench, textbox, _character_name, text, ev_bg, evidence],
                     )
                 )
                 scenes.append(
                     AnimScene(scene_objs, len(_text) - 1, start_frame=current_frame)
                 )
-                sound_effects.append({"_type": "bip", "length": len(_text) - 1})
+                sound_effects.append({"_type": "bip", "length": len(_text) - 1, "gender": character_roles_and_gender[obj["character"]][1]})
                 if obj["action"] == constants.Action.TEXT_SHAKE_EFFECT:
                     bg.shake_effect = False
                     character.shake_effect = False
@@ -192,7 +217,7 @@ def do_video(config: List[Dict], output_filename):
                 scene_objs = list(
                     filter(
                         lambda x: x is not None,
-                        [bg, character, bench, textbox, _character_name, text, arrow, evidence],
+                        [bg, character, bench, textbox, _character_name, text, arrow, ev_bg, evidence],
                     )
                 )
                 scenes.append(
@@ -207,7 +232,6 @@ def do_video(config: List[Dict], output_filename):
                     bench.shake_effect = True
                 textbox.shake_effect = True
                 character = default_character
-                #                 print(character, textbox, character_name, text)
                 if text is not None:
                     scene_objs = list(
                         filter(
@@ -220,6 +244,7 @@ def do_video(config: List[Dict], output_filename):
                                 character_name,
                                 text,
                                 arrow,
+                                ev_bg,
                                 evidence,
                             ],
                         )
@@ -241,6 +266,7 @@ def do_video(config: List[Dict], output_filename):
                 #                 character.shake_effect = True
                 #                 if bench is not None:
                 #                     bench.shake_effect = True
+                objection = AnimImg(f"{lib_path}/assets/objection.gif") if obj["character"] != 'ROU' else AnimImg(f"{lib_path}/assets/notsofast.gif")
                 objection.shake_effect = True
                 character = default_character
                 scene_objs = list(
@@ -267,7 +293,7 @@ def do_video(config: List[Dict], output_filename):
                 # list(filter(lambda x: x is not None, scene_objs))
                 character = default_character
                 scene_objs = list(
-                    filter(lambda x: x is not None, [bg, character, bench, evidence])
+                    filter(lambda x: x is not None, [bg, character, bench, ev_bg, evidence])
                 )
                 _length = lag_frames
                 if "length" in obj:
@@ -278,68 +304,93 @@ def do_video(config: List[Dict], output_filename):
                 character.repeat = True
                 sound_effects.append({"_type": "silence", "length": _length})
                 current_frame += _length
+            frames_since_video_start += current_frame
             if (len(scenes) > 50):
                 video = AnimVideo(scenes, fps=fps)
                 video.render(output_filename + '/' +str(part) + '.mp4')
                 part+=1
                 scenes = []
-
+                
     if (len(scenes) > 0):
         video = AnimVideo(scenes, fps=fps)
         video.render(output_filename + '/' +str(part) + '.mp4')
-    return sound_effects
+    return [sound_effects, frames_since_video_start]
 
-def do_audio(sound_effects: List[Dict], output_filename):
+def do_audio(sound_effects: List[Dict], output_filename, video_end_frame):
     audio_se = AudioSegment.empty()
-    bip = AudioSegment.from_wav(
-        "assets/sfx general/sfx-blipmale.wav"
-    ) + AudioSegment.silent(duration=50)
-    blink = AudioSegment.from_wav("assets/sfx general/sfx-blink.wav")
+    music_se = AudioSegment.empty()
+    blink = AudioSegment.from_wav(f"{lib_path}/assets/sfx general/sfx-blink.wav")
     blink -= 10
-    badum = AudioSegment.from_wav("assets/sfx general/sfx-fwashing.wav")
-    long_bip = bip * 100
-    long_bip -= 10
+    badum = AudioSegment.from_wav(f"{lib_path}/assets/sfx general/sfx-fwashing.wav")
     spf = 1 / fps * 1000
-    pheonix_objection = AudioSegment.from_mp3("assets/Phoenix - objection.mp3")
-    edgeworth_objection = AudioSegment.from_mp3(
-        "assets/Edgeworth - (English) objection.mp3"
-    )
-    default_objection = AudioSegment.from_mp3("assets/Payne - Objection.mp3")
+    default_objection = AudioSegment.from_wav(f"{lib_path}/assets/sfx general/sfx-objection.wav")
+    bgms = [x for i, x in enumerate(sound_effects) if x["_type"] == "bg"]
+    cap = video_end_frame
+    start = 0
+    if len(bgms)>1:
+        cap = bgms[1]["start"]
+        l = cap
+        if l>bgms[0]["length"]:
+            music_se += AudioSegment.from_mp3(bgms[0]["src"])[:int((bgms[0]["length"]/fps)*1000)]
+            start = bgms[0]["length"]
+            l = cap-start
+            bgms[0]["src"] = f'{bgms[0]["src"][:-4]}-loop.mp3'
+            bgms[0]["length"] = int(audio_duration(bgms[0]["src"])*fps)
+            while l>bgms[0]["length"]:
+                music_se += AudioSegment.from_mp3(bgms[0]["src"])[:int((bgms[0]["length"]/fps)*1000)]
+                l -= bgms[0]["length"]
+            if l>0:
+                music_se += AudioSegment.from_mp3(bgms[0]["src"])[:int((l/fps)*1000)]
+        else:
+            music_se+=AudioSegment.from_mp3(bgms[0]["src"])[:int((l/fps)*1000)]
+        start = bgms[1]["start"]
+        cap = video_end_frame
+        l = cap - start
+        if l>bgms[1]["length"]:
+            music_se += AudioSegment.from_mp3(bgms[1]["src"])[:int((bgms[1]["length"]/fps)*1000)]
+            start+=bgms[1]["length"]
+            bgms[1]["src"] = f'{bgms[1]["src"][:-4]}-loop.mp3'
+            bgms[1]["length"] = int(audio_duration(bgms[1]["src"])*fps)
+            while l>bgms[1]["length"]:
+                music_se += AudioSegment.from_mp3(bgms[1]["src"])[:int((bgms[1]["length"]/fps)*1000)]
+                l -= bgms[1]["length"]
+            if l>0:
+                music_se += AudioSegment.from_mp3(bgms[1]["src"])[:int((l/fps)*1000)]
+        else:
+            music_se += AudioSegment.from_mp3(bgms[1]["src"])[:int((l/fps)*1000)]
+    else:
+        l = cap
+        if l>bgms[0]["length"]:
+            music_se += AudioSegment.from_mp3(bgms[0]["src"])[:int((bgms[0]["length"]/fps)*1000)]
+            start = bgms[0]["length"]
+            l = cap-start
+            bgms[0]["src"] = f'{bgms[0]["src"][:-4]}-loop.mp3'
+            bgms[0]["length"] = int(audio_duration(bgms[0]["src"])*fps)
+            while l>bgms[0]["length"]:
+                music_se += AudioSegment.from_mp3(bgms[0]["src"])[:int((bgms[0]["length"]/fps)*1000)]
+                l -= bgms[0]["length"]
+            if l>0:
+                music_se += AudioSegment.from_mp3(bgms[0]["src"])[:int((l/fps)*1000)]
+        else:
+            music_se+=AudioSegment.from_mp3(bgms[0]["src"])[:int((l/fps)*1000)]
     for obj in sound_effects:
         if obj["_type"] == "silence":
             audio_se += AudioSegment.silent(duration=int(obj["length"] * spf))
         elif obj["_type"] == "bip":
+            bip = bip = AudioSegment.from_wav(
+                f"{lib_path}/assets/sfx general/sfx-blip{obj['gender']}.wav"
+            ) + AudioSegment.silent(duration=50)
+            long_bip = bip * 100
+            long_bip -= 10
             audio_se += blink + long_bip[: max(int(obj["length"] * spf - len(blink)), 0)]
         elif obj["_type"] == "objection":
-            if obj["character"] == "phoenix":
-                audio_se += pheonix_objection[: int(obj["length"] * spf)]
-            elif obj["character"] == "edgeworth":
-                audio_se += edgeworth_objection[: int(obj["length"] * spf)]
+            if character_roles_and_gender[obj["character"].upper()][0] in ['attorney', 'prosecutor']:
+                objection = AudioSegment.from_mp3(f'{lib_path}/assets/objections/objection ({obj["character"]}).mp3')
+                audio_se += objection[: int(obj["length"] * spf)]
             else:
                 audio_se += default_objection[: int(obj["length"] * spf)]
         elif obj["_type"] == "shock":
             audio_se += badum[: int(obj["length"] * spf)]
-    #     audio_se -= 10
-    music_tracks = []
-    len_counter = 0
-    for obj in sound_effects:
-        if obj["_type"] == "bg":
-            if len(music_tracks) > 0:
-                music_tracks[-1]["length"] = len_counter
-                len_counter = 0
-            music_tracks.append({"src": obj["src"]})
-        else:
-            len_counter += obj["length"]
-    if len(music_tracks) > 0:
-        music_tracks[-1]["length"] = len_counter
-    #     print(music_tracks)
-    music_se = AudioSegment.empty()
-    for track in music_tracks:
-        music_se += AudioSegment.from_mp3(track["src"])[
-            : int((track["length"] / fps) * 1000)
-        ]
-    #     music_se = AudioSegment.from_mp3(sound_effects[0]["src"])[:len(audio_se)]
-    #     music_se -= 5
     final_se = music_se.overlay(audio_se)
     final_se.export(output_filename, format="mp3")
 
@@ -351,7 +402,7 @@ def ace_attorney_anim(config: List[Dict], output_filename: str = "output.mp4"):
         shutil.rmtree(root_filename)
     os.mkdir(root_filename)
     sound_effects = do_video(config, root_filename)
-    do_audio(sound_effects, audio_filename)
+    do_audio(sound_effects[0], audio_filename, sound_effects[1])
     videos = []
     with open(text_filename, 'w') as txt:
         for file in os.listdir(root_filename):
@@ -367,49 +418,30 @@ def ace_attorney_anim(config: List[Dict], output_filename: str = "output.mp4"):
         textInput,
         audio,
         output_filename,
-        vcodec="libx264",
+        vcodec="copy",
         acodec="aac",
-        strict="experimental"
+        strict="experimental",
+        shortest=None
     )
     out.run()
+    if hd_video==0:
+        input_video = ffmpeg.input(output_filename)
+        resized = ffmpeg.filter(input_video.video, "scale", w=256, h=192, sws_flags="neighbor")
+        out = ffmpeg.output(
+            resized,
+            audio,
+            f'{output_filename[:-4]}-resized.mp4',
+            shortest=None
+        )
+        out.run()
+        os.remove(output_filename)
+        os.rename(f'{output_filename[:-4]}-resized.mp4', output_filename)
     if os.path.exists(root_filename):
         shutil.rmtree(root_filename)
     if os.path.exists(text_filename):
         os.remove(text_filename)
     if os.path.exists(audio_filename):
         os.remove(audio_filename)
-
-
-def get_characters(most_common: List):
-    characters = {Character.PHOENIX: most_common[0]}
-    if len(most_common) > 0:
-        characters[Character.EDGEWORTH] = most_common[1]
-        for character in most_common[2:]:
-            #         rnd_characters = rnd_prosecutors if len(set(rnd_prosecutors) - set(characters.keys())) > 0 else rnd_witness
-            rnd_characters = [
-                Character.GODOT,
-                Character.FRANZISKA,
-                Character.JUDGE,
-                Character.LARRY,
-                Character.MAYA,
-                Character.KARMA,
-                Character.PAYNE,
-                Character.MAGGEY,
-                Character.PEARL,
-                Character.LOTTA,
-                Character.GUMSHOE,
-                Character.GROSSBERG,
-            ]
-            rnd_character = random.choice(
-                list(
-                    filter(
-                        lambda character: character not in characters, rnd_characters
-                    )
-                )
-            )
-            characters[rnd_character] = character
-    return characters
-
 
 def comments_to_scene(comments: List[CommentBridge], name_music = "PWR", **kwargs):
     scene = []
@@ -434,11 +466,22 @@ def comments_to_scene(comments: List[CommentBridge], name_music = "PWR", **kwarg
                     i += 1
         character_block = []
         character = comment.character
-        main_emotion = random.choice(constants.character_emotions[character]["neutral"])
+        character_folder = f'{lib_path}/assets/characters/Sprites-{character}'
+        emotions = {}
+        emotion_types = ['neutral', 'sad', 'happy']
+        for i in range(len(emotion_types)):
+            sprites = os.listdir(os.path.join(character_folder, emotion_types[i]))
+            character_emotions = []
+            for j in range(len(sprites)):
+                character_emotion = f'{emotion_types[i]}/{sprites[j][:-7]}' if '(' in sprites[j] else f'{emotion_types[i]}/{sprites[j][:-4]}'
+                if character_emotion not in character_emotions:
+                    character_emotions.append(character_emotion)
+            emotions[emotion_types[i]] = character_emotions
+        main_emotion = random.choice(emotions['neutral'])
         if polarity == '-' or comment.score < 0:
-            main_emotion = random.choice(constants.character_emotions[character]["sad"])
+            main_emotion = random.choice(emotions['sad'])
         elif polarity == '+':
-            main_emotion = random.choice(constants.character_emotions[character]["happy"])
+            main_emotion = random.choice(emotions['happy'])
         # For each sentence we temporaly store it in character_block
         for idx, chunk in enumerate(joined_sentences):
             character_block.append(
@@ -459,12 +502,7 @@ def comments_to_scene(comments: List[CommentBridge], name_music = "PWR", **kwarg
             )
         scene.append(character_block)
     formatted_scenes = []
-    if name_music == 'PWR':
-        last_audio = "03 - Turnabout Courtroom - Trial"
-    elif name_music == 'JFA':
-        last_audio = "Phoenix Wright Ace Attorney_ Justice for All OST - Trial"
-    else:
-        last_audio = "Phoenix Wright_ Trials and Tribulations OST - Trial"
+    last_audio = f"trial/Trial ({name_music})"
     change_audio = True
     for character_block in scene:
         scene_objs = []
@@ -475,18 +513,9 @@ def comments_to_scene(comments: List[CommentBridge], name_music = "PWR", **kwarg
                     "action": constants.Action.OBJECTION,
                 }
             )
-            if name_music == 'PWR':
-                if last_audio != "08 - Pressing Pursuit _ Cornered":
-                    last_audio = "08 - Pressing Pursuit _ Cornered"
-                    change_audio = True
-            elif name_music == 'JFA':
-                if last_audio != "Phoenix Wright Ace Attorney_ Justice for All OST - Pressing Pursuit _ Cross-Examine":
-                    last_audio = "Phoenix Wright Ace Attorney_ Justice for All OST - Pressing Pursuit _ Cross-Examine"
-                    change_audio = True
-            else:
-                if last_audio != "Phoenix Wright_ Trials and Tribulations OST - Pressing Pursuit _ Caught":
-                    last_audio = "Phoenix Wright_ Trials and Tribulations OST - Pressing Pursuit _ Caught"
-                    change_audio = True
+            if last_audio != f"pursuit/Pursuit ({name_music})":
+                last_audio = f"pursuit/Pursuit ({name_music})"
+                change_audio = True
             
         for obj in character_block:
             # We insert the data in the character block in the definitive scene object
@@ -502,7 +531,7 @@ def comments_to_scene(comments: List[CommentBridge], name_music = "PWR", **kwarg
             )
         # One scene may have several sub-scenes. I.e: A scene may have an objection followed by text
         formatted_scene = {
-            "location": constants.character_location_map[character_block[0]["character"]],
+            "location": constants.locations[character_roles_and_gender[obj["character"]][0]],
             "scene": scene_objs,
         }
         if change_audio:
