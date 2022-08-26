@@ -7,13 +7,11 @@ from typing import List, Dict
 import random
 import os
 import shutil
-import random as r
 from pydub import AudioSegment
 import moviepy.editor as mpe
 from enum import IntEnum
 import ffmpeg
 from collections import Counter
-import random
 from textwrap import wrap
 import spacy
 from .polarity_analysis import Analizer
@@ -71,8 +69,7 @@ def do_video(config: List[Dict], output_filename):
         if "audio" in scene:
             audio_start_frame = frames_since_video_start
             audio_name = f'{lib_path}/assets/bgm/{scene["audio"]}.mp3'
-            audio_length = int(audio_duration(audio_name)*fps)
-            sound_effects.append({"_type": "bg", "length": audio_length, "src": audio_name, "start": audio_start_frame})
+            sound_effects.append({"_type": "bg", "src": audio_name, "start": audio_start_frame})
         current_frame = 0
         current_character_name = None
         text = None
@@ -324,55 +321,10 @@ def do_audio(sound_effects: List[Dict], output_filename, video_end_frame):
     badum = AudioSegment.from_wav(f"{lib_path}/assets/sfx general/sfx-fwashing.wav")
     spf = 1 / fps * 1000
     default_objection = AudioSegment.from_wav(f"{lib_path}/assets/sfx general/sfx-objection.wav")
-    bgms = [x for i, x in enumerate(sound_effects) if x["_type"] == "bg"]
-    cap = video_end_frame
-    start = 0
-    if len(bgms)>1:
-        cap = bgms[1]["start"]
-        l = cap
-        if l>bgms[0]["length"]:
-            music_se += AudioSegment.from_mp3(bgms[0]["src"])[:int((bgms[0]["length"]/fps)*1000)]
-            start = bgms[0]["length"]
-            l = cap-start
-            bgms[0]["src"] = f'{bgms[0]["src"][:-4]}-loop.mp3'
-            bgms[0]["length"] = int(audio_duration(bgms[0]["src"])*fps)
-            while l>bgms[0]["length"]:
-                music_se += AudioSegment.from_mp3(bgms[0]["src"])[:int((bgms[0]["length"]/fps)*1000)]
-                l -= bgms[0]["length"]
-            if l>0:
-                music_se += AudioSegment.from_mp3(bgms[0]["src"])[:int((l/fps)*1000)]
-        else:
-            music_se+=AudioSegment.from_mp3(bgms[0]["src"])[:int((l/fps)*1000)]
-        start = bgms[1]["start"]
-        cap = video_end_frame
-        l = cap - start
-        if l>bgms[1]["length"]:
-            music_se += AudioSegment.from_mp3(bgms[1]["src"])[:int((bgms[1]["length"]/fps)*1000)]
-            start+=bgms[1]["length"]
-            bgms[1]["src"] = f'{bgms[1]["src"][:-4]}-loop.mp3'
-            bgms[1]["length"] = int(audio_duration(bgms[1]["src"])*fps)
-            while l>bgms[1]["length"]:
-                music_se += AudioSegment.from_mp3(bgms[1]["src"])[:int((bgms[1]["length"]/fps)*1000)]
-                l -= bgms[1]["length"]
-            if l>0:
-                music_se += AudioSegment.from_mp3(bgms[1]["src"])[:int((l/fps)*1000)]
-        else:
-            music_se += AudioSegment.from_mp3(bgms[1]["src"])[:int((l/fps)*1000)]
-    else:
-        l = cap
-        if l>bgms[0]["length"]:
-            music_se += AudioSegment.from_mp3(bgms[0]["src"])[:int((bgms[0]["length"]/fps)*1000)]
-            start = bgms[0]["length"]
-            l = cap-start
-            bgms[0]["src"] = f'{bgms[0]["src"][:-4]}-loop.mp3'
-            bgms[0]["length"] = int(audio_duration(bgms[0]["src"])*fps)
-            while l>bgms[0]["length"]:
-                music_se += AudioSegment.from_mp3(bgms[0]["src"])[:int((bgms[0]["length"]/fps)*1000)]
-                l -= bgms[0]["length"]
-            if l>0:
-                music_se += AudioSegment.from_mp3(bgms[0]["src"])[:int((l/fps)*1000)]
-        else:
-            music_se+=AudioSegment.from_mp3(bgms[0]["src"])[:int((l/fps)*1000)]
+    music_tracks = []
+    for obj in sound_effects:
+        if obj["_type"] == "bg":
+            music_tracks.append({"src": obj["src"], "start": obj["start"]})
     for obj in sound_effects:
         if obj["_type"] == "silence":
             audio_se += AudioSegment.silent(duration=int(obj["length"] * spf))
@@ -391,6 +343,35 @@ def do_audio(sound_effects: List[Dict], output_filename, video_end_frame):
                 audio_se += default_objection[: int(obj["length"] * spf)]
         elif obj["_type"] == "shock":
             audio_se += badum[: int(obj["length"] * spf)]
+    for bgm in music_tracks:
+        bg = AudioSegment.from_mp3(bgm["src"])
+        if len(music_tracks)>1: 
+            if music_tracks.index(bgm)==0:
+                track_end = int(music_tracks[-1]["start"]/fps*1000)
+            else:
+                track_end = int(video_end_frame/fps*1000)
+            if len(music_se)<track_end:
+                music_se += bg[:track_end]
+            else:
+                music_se += bg
+                if len(music_se)<track_end:
+                    loop = AudioSegment.from_mp3(f'{bgm["src"][:-4]}-loop.mp3')
+                    while (track_end-len(music_se)>len(loop)):
+                        music_se += loop
+                    if len(music_se)<track_end:
+                        music_se += loop[track_end-len(music_se)]
+        else:
+            track_end = int(video_end_frame/fps*1000)
+            if len(music_se)<track_end:
+                music_se += bg[:track_end]
+            else:
+                music_se += bg
+                if len(music_se)<track_end:
+                    loop = AudioSegment.from_mp3(f'{bgm["src"][:-4]}-loop.mp3')
+                    while (track_end-len(music_se)>len(loop)):
+                        music_se += loop
+                    if len(music_se)<track_end:
+                        music_se += loop[track_end-len(music_se)]
     final_se = music_se.overlay(audio_se)
     final_se.export(output_filename, format="mp3")
 
@@ -421,7 +402,6 @@ def ace_attorney_anim(config: List[Dict], output_filename: str = "output.mp4"):
         vcodec="copy",
         acodec="aac",
         strict="experimental",
-        shortest=None
     )
     out.run()
     if hd_video==0:
@@ -431,7 +411,6 @@ def ace_attorney_anim(config: List[Dict], output_filename: str = "output.mp4"):
             resized,
             audio,
             f'{output_filename[:-4]}-resized.mp4',
-            shortest=None
         )
         out.run()
         os.remove(output_filename)
