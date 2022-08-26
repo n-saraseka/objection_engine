@@ -25,6 +25,7 @@ fps = 18
 lag_frames = 25
 lib_path = os.path.dirname(os.path.abspath(__file__))
 pollys_gender = random.choice(['male', 'female'])
+music_codes = ["AAI", "AAI2", "AJ", "DD", "JFA", "PWR", "SOJ", "T&T"]
 
 config = configparser.RawConfigParser()
 config.read(os.path.join(lib_path, 'render_config.cfg'))
