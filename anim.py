@@ -200,9 +200,9 @@ def do_video(config: List[Dict], output_filename):
                     )
                 )
                 scenes.append(
-                    AnimScene(scene_objs, len(_text) - 1, start_frame=current_frame)
+                    AnimScene(scene_objs, len(_text), start_frame=current_frame)
                 )
-                sound_effects.append({"_type": "bip", "length": len(_text) - 1, "gender": character_roles_and_gender[obj["character"]][1]})
+                sound_effects.append({"_type": "bip", "length": len(_text), "gender": character_roles_and_gender[obj["character"]][1]})
                 if obj["action"] == constants.Action.TEXT_SHAKE_EFFECT:
                     bg.shake_effect = False
                     character.shake_effect = False
@@ -218,7 +218,7 @@ def do_video(config: List[Dict], output_filename):
                     )
                 )
                 scenes.append(
-                    AnimScene(scene_objs, lag_frames, start_frame=len(_text) - 1)
+                    AnimScene(scene_objs, lag_frames, start_frame=len(_text))
                 )
                 current_frame += num_frames
                 sound_effects.append({"_type": "silence", "length": lag_frames})
@@ -302,15 +302,11 @@ def do_video(config: List[Dict], output_filename):
                 sound_effects.append({"_type": "silence", "length": _length})
                 current_frame += _length
             frames_since_video_start += current_frame
-            if (len(scenes) > 50):
+            if (len(scenes) > 0):
                 video = AnimVideo(scenes, fps=fps)
                 video.render(output_filename + '/' +str(part) + '.mp4')
                 part+=1
                 scenes = []
-                
-    if (len(scenes) > 0):
-        video = AnimVideo(scenes, fps=fps)
-        video.render(output_filename + '/' +str(part) + '.mp4')
     return [sound_effects, frames_since_video_start]
 
 def do_audio(sound_effects: List[Dict], output_filename, video_end_frame):
