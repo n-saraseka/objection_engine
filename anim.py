@@ -346,19 +346,19 @@ def do_audio(sound_effects: List[Dict], output_filename, video_end_frame):
                 track_end = int(music_tracks[-1]["start"]/fps*1000)
             else:
                 track_end = int(video_end_frame/fps*1000)
-            if len(music_se)<track_end:
+            if track_end-len(music_se)<len(bg):
                 music_se += bg[:track_end]
             else:
                 music_se += bg
                 if len(music_se)<track_end:
                     loop = AudioSegment.from_mp3(f'{bgm["src"][:-4]}-loop.mp3')
-                    while (track_end-len(music_se)>len(loop)):
-                        music_se += loop
+                    if track_end-len(music_se)>len(loop):
+                        music_se += loop*((track_end-len(music_se))//len(loop))
                     if len(music_se)<track_end:
-                        music_se += loop[track_end-len(music_se)]
+                        music_se += loop[:track_end-len(music_se)]
         else:
             track_end = int(video_end_frame/fps*1000)
-            if len(music_se)<track_end:
+            if track_end-len(music_se)<len(bg):
                 music_se += bg[:track_end]
             else:
                 music_se += bg
@@ -367,7 +367,7 @@ def do_audio(sound_effects: List[Dict], output_filename, video_end_frame):
                     while (track_end-len(music_se)>len(loop)):
                         music_se += loop
                     if len(music_se)<track_end:
-                        music_se += loop[track_end-len(music_se)]
+                        music_se += loop[:track_end-len(music_se)]
     final_se = music_se.overlay(audio_se)
     final_se.export(output_filename, format="mp3")
 
@@ -398,6 +398,7 @@ def ace_attorney_anim(config: List[Dict], output_filename: str = "output.mp4"):
         vcodec="copy",
         acodec="aac",
         strict="experimental",
+        shortest=None
     )
     out.run()
     if hd_video==0:
@@ -407,6 +408,7 @@ def ace_attorney_anim(config: List[Dict], output_filename: str = "output.mp4"):
             resized,
             audio,
             f'{output_filename[:-4]}-resized.mp4',
+            shortest=None
         )
         out.run()
         os.remove(output_filename)
