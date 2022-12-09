@@ -78,17 +78,16 @@ if __name__=='__main__':
             print(f'Worker No. {i} has started working')
         for event in longpoll.listen():
             try:
-                if event.chat_id == 5:
-                    if event.type == VkBotEventType.MESSAGE_NEW:
-                        if event.from_chat:
-                            task_queue.put([event.chat_id, event.object.message, True], True, 1/3)
-                        else:
-                            task_queue.put([event.object.message['from_id'], event.object.message, False], True, 1/3)
-                        for i in range(workers_amount):
-                            if workers[i].is_alive()==False:
-                                print(f'Worker No. {i} has stopped working. Restarting...')
-                                workers[i] = Process(target=worker, args=(task_queue, worker_id))
-                                workers[i].start()
+                if event.type == VkBotEventType.MESSAGE_NEW:
+                    if event.from_chat:
+                        task_queue.put([event.chat_id, event.object.message, True], True, 1/3)
+                    else:
+                        task_queue.put([event.object.message['from_id'], event.object.message, False], True, 1/3)
+                    for i in range(workers_amount):
+                        if workers[i].is_alive()==False:
+                            print(f'Worker No. {i} has stopped working. Restarting...')
+                            workers[i] = Process(target=worker, args=(task_queue, worker_id))
+                            workers[i].start()
                 time.sleep(1/3)
             except requests.exceptions.ConnectionError:
                 vk_session = vk_api.VkApi(token = group_token)
