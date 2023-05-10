@@ -13,6 +13,7 @@ class Comment:
     text_content = '...',
     evidence_path: str = None,
     gender: str = None,
+    character: str = None,
     score = 0
     ):
         self.user_name = user_name
@@ -21,5 +22,5 @@ class Comment:
         self.score = score
         self.evidence_path = evidence_path
         self.gender = gender
+        self.character = character
         self.effective_user_id = self.user_id or self.user_name
-        self.character: None

@@ -13,7 +13,9 @@ def get_characters(comment_list: List[Comment]):
     users_to_characters = {}
 
     genders = {}
+    characters = {}
     for i in comment_list:
+        characters[f'user-{i.user_id}'] = i.character
         if ignore_gender==0:
             genders[f'user-{i.user_id}'] = i.gender
         else:
@@ -34,14 +36,26 @@ def get_characters(comment_list: List[Comment]):
             other_rnd_characters[roles[i][1]].append(i)
     
     if len(most_common) > 0:
-        rnd_attorney = random.choice(rnd_attorneys[genders[f'user-{most_common[0]}']])
-        users_to_characters[most_common[0]] = rnd_attorney
+        print(characters[f'user-{most_common[0]}'])
+        if (characters[f'user-{most_common[0]}']==None or (characters[f'user-{most_common[0]}'] not in roles)):
+            rnd_attorney = random.choice(rnd_attorneys[genders[f'user-{most_common[0]}']])
+            users_to_characters[most_common[0]] = rnd_attorney
+        else:
+            users_to_characters[most_common[0]] = characters[f'user-{most_common[0]}']
         if len(most_common) > 1:
-            rnd_prosecutor = random.choice(rnd_prosecutors[genders[f'user-{most_common[1]}']])
-            users_to_characters[most_common[1]] = rnd_prosecutor
+            print(characters[f'user-{most_common[1]}'])
+            if (characters[f'user-{most_common[1]}']==None or (characters[f'user-{most_common[1]}'] not in roles)):
+                rnd_prosecutor = random.choice(rnd_prosecutors[genders[f'user-{most_common[1]}']])
+                users_to_characters[most_common[1]] = rnd_prosecutor
+            else:
+                users_to_characters[most_common[1]] = characters[f'user-{most_common[1]}']
             for character in most_common[2:]:
                 i = most_common.index(character)
-                rnd_character = random.choice(other_rnd_characters[genders[f'user-{most_common[i]}']])
-                other_rnd_characters[genders[f'user-{most_common[i]}']].remove(rnd_character)
-                users_to_characters[character] = rnd_character
+                print(characters[f'user-{most_common[i]}'])
+                if (characters[f'user-{most_common[i]}']==None or (characters[f'user-{most_common[i]}'] not in roles)):
+                    rnd_character = random.choice(other_rnd_characters[genders[f'user-{most_common[i]}']])
+                    other_rnd_characters[genders[f'user-{most_common[i]}']].remove(rnd_character)
+                    users_to_characters[character] = rnd_character
+                else:
+                    users_to_characters[character] = characters[f'user-{most_common[i]}']
     return users_to_characters
